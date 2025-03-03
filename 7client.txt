@@ -1,0 +1,70 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <errno.h>
+#include <string.h>
+#include <fcntl.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
+#define FIFO1_NAME "fifo1"
+#define FIFO2_NAME "fifo2"
+
+int main() {
+    char p[100], c[3000];
+    int num, num2, fd, fd2;
+
+    // Create FIFOs
+    mkfifo(FIFO1_NAME, 0666);
+    mkfifo(FIFO2_NAME, 0666);
+
+    printf("\nWaiting for server...\n");
+
+    // Open FIFO1 for writing
+    fd = open(FIFO1_NAME, O_WRONLY);
+    if (fd == -1) {
+        perror("Error opening FIFO1");
+        exit(1);
+    }
+
+    printf("\nSERVER ONLINE!\nCLIENT: Enter the file path:\n");
+
+    while (fgets(p, sizeof(p), stdin)) {
+        strtok(p, "\n"); // Remove newline character
+
+        num = write(fd, p, strlen(p));
+        if (num == -1) {
+            perror("Write error");
+            continue;
+        }
+
+        printf("Waiting for reply...\n");
+
+        // Open FIFO2 for reading
+        fd2 = open(FIFO2_NAME, O_RDONLY);
+        if (fd2 == -1) {
+            perror("Error opening FIFO2");
+            continue;
+        }
+
+        num2 = read(fd2, c, sizeof(c) - 1);
+        if (num2 == -1) {
+            perror("Transfer error");
+            close(fd2);
+            continue;
+        }
+
+        c[num2] = '\0'; // Null terminate received content
+
+        printf("\nFile received! Displaying the contents:\n\n%s\n", c);
+
+        close(fd2);
+        exit(0); // Exit after one successful file transfer
+    }
+
+    close(fd);
+    unlink(FIFO1_NAME);
+    unlink(FIFO2_NAME);
+
+    return 0;
+}
