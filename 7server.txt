@@ -1,0 +1,82 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <errno.h>
+#include <string.h>
+#include <fcntl.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
+#define FIFO1_NAME "fifo1"
+#define FIFO2_NAME "fifo2"
+
+int main() {
+    char p[100], c[3000];
+    int num, num2, f1, fd, fd2;
+    
+    // Create FIFOs
+    mkfifo(FIFO1_NAME, 0666);
+    mkfifo(FIFO2_NAME, 0666);
+
+    printf("\nSERVER ONLINE\n");
+    
+    // Open FIFO1 for reading
+    fd = open(FIFO1_NAME, O_RDONLY);
+    if (fd == -1) {
+        perror("Error opening FIFO1");
+        exit(1);
+    }
+
+    printf("Client online\nWaiting for request...\n");
+
+    while (1) {
+        num = read(fd, p, sizeof(p) - 1);
+        if (num == -1) {
+            perror("Read error");
+            continue;
+        }
+
+        p[num] = '\0'; // Null terminate the string
+        f1 = open(p, O_RDONLY);
+        if (f1 < 0) {
+            printf("\nServer: File %s not found\n", p);
+            continue;
+        }
+
+        printf("\nServer: %s found, transferring contents...\n", p);
+
+        // Read file contents
+        num = read(f1, c, sizeof(c) - 1);
+        if (num < 0) {
+            perror("File read error");
+            close(f1);
+            continue;
+        }
+        c[num] = '\0'; // Null terminate the file contents
+
+        close(f1);
+
+        // Open FIFO2 for writing
+        fd2 = open(FIFO2_NAME, O_WRONLY);
+        if (fd2 == -1) {
+            perror("Error opening FIFO2");
+            continue;
+        }
+
+        // Send file contents to client
+        num2 = write(fd2, c, strlen(c));
+        if (num2 == -1) {
+            perror("Transfer error");
+        } else {
+            printf("\nServer: Transfer completed\n");
+        }
+
+        close(fd2);
+    }
+
+    close(fd);
+    unlink(FIFO1_NAME);
+    unlink(FIFO2_NAME);
+
+    return 0;
+}
